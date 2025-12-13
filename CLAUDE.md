@@ -10,16 +10,16 @@ Terma is a native iOS SSH client app built with SwiftUI. The primary use case is
 
 ```bash
 # Build the project
-xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Simulator,name=Phone' build
 
 # Run tests
-xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Simulator,name=Phone' test
 
 # Run a single test class
-xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Simulator,name=iPhone 16' test -only-testing:termaTests/TestClassName
+xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Simulator,name=Phone' test -only-testing:termaTests/TestClassName
 
 # Run a single test method
-xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Simulator,name=iPhone 16' test -only-testing:termaTests/TestClassName/testMethodName
+xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Simulator,name=Phone' test -only-testing:termaTests/TestClassName/testMethodName
 ```
 
 ## Technical Stack
@@ -31,30 +31,26 @@ xcodebuild -project terma.xcodeproj -scheme terma -destination 'platform=iOS Sim
 - **SSH Protocol:** SwiftNIO SSH (github.com/apple/swift-nio-ssh)
 - **Secure Storage:** iOS Keychain via KeychainAccess library
 
-## Planned Architecture
+## Architecture
 
 The app follows MVVM pattern with these layers:
 
-- **Models:** `ServerProfile`, `AuthMethod`, `SessionState` - data structures for connection profiles and session management
-- **Services:** `SSHService` (SwiftNIO SSH wrapper), `KeychainService` (credential CRUD), `ProfileStorage` (profile persistence)
-- **ViewModels:** Coordinate between services and views
-- **Views:** SwiftUI views organized by feature (ServerList, ServerEdit, Terminal)
+- **Models:** `ServerProfile` (SwiftData), `AuthMethod`, `SessionState`/`TerminalSession`
+- **Services:** `SSHService` (SwiftNIO SSH wrapper), `KeychainService` (credential CRUD), `ProfileStorage` (SwiftData persistence)
+- **ViewModels:** `ServerListViewModel`, `ServerEditViewModel`, `TerminalViewModel`
+- **Views:** Organized by feature in `Views/ServerList/`, `Views/ServerEdit/`, `Views/Terminal/`, `Views/Components/`
 
 ### Key Integration Points
 
-- **SwiftTerm:** Use `UIViewRepresentable` to wrap `TerminalView` (UIKit) for SwiftUI
-- **SSH I/O:** Connect `SSHService.onDataReceived` to `terminalView.feed()`, and terminal delegate's `send()` to `SSHService.send()`
-- **PTY:** Request with `xterm-256color` terminal type for full color support
+- **SwiftTerm:** `TerminalViewRepresentable` wraps `TerminalView` (UIKit) for SwiftUI
+- **SSH I/O:** `SSHService.onDataReceived` feeds `terminalView.feed()`, terminal delegate's `send()` calls `SSHService.send()`
+- **PTY:** Request with `xterm-256color` terminal type, handle resize via `SSHChannelRequestEvent.WindowChangeRequest`
 
-## SPM Dependencies (to be added)
+## SPM Dependencies
 
-```swift
-dependencies: [
-    .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.2.0"),
-    .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.8.0"),
-    .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", from: "4.2.2"),
-]
-```
+- SwiftTerm (1.2.0+) - Terminal emulation
+- swift-nio-ssh (0.8.0+) - SSH protocol
+- KeychainAccess (4.2.2+) - Secure credential storage
 
 ## Implementation Notes
 

@@ -1,11 +1,5 @@
-//
-//  termaApp.swift
-//  terma
-//
-//  Created by Sebastian Karasiewicz on 13/12/2025.
-//
-
 import SwiftUI
+import SwiftData
 
 @main
 struct termaApp: App {
@@ -13,5 +7,6 @@ struct termaApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(ProfileStorage.shared.modelContainer)
     }
 }

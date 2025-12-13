@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C2AFAAEB2EEDF93B0057E476 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = C2AFAAD62EEDEE0E0057E476 /* SwiftTerm */; };
+		C2AFAAEC2EEDF93B0057E476 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = C2AFAAD72EEDEE0E0057E476 /* NIOSSH */; };
+		C2AFAAED2EEDF93B0057E476 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = C2AFAAD82EEDEE0E0057E476 /* KeychainAccess */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		C2AFAAB72EEDEE0D0057E476 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +58,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C2AFAAED2EEDF93B0057E476 /* KeychainAccess in Frameworks */,
+				C2AFAAEC2EEDF93B0057E476 /* NIOSSH in Frameworks */,
+				C2AFAAEB2EEDF93B0057E476 /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +121,9 @@
 			);
 			name = terma;
 			packageProductDependencies = (
+				C2AFAAD62EEDEE0E0057E476 /* SwiftTerm */,
+				C2AFAAD72EEDEE0E0057E476 /* NIOSSH */,
+				C2AFAAD82EEDEE0E0057E476 /* KeychainAccess */,
 			);
 			productName = terma;
 			productReference = C2AFAAA92EEDEE0C0057E476 /* terma.app */;
@@ -195,6 +207,11 @@
 			);
 			mainGroup = C2AFAAA02EEDEE0C0057E476;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C2AFAAD32EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				C2AFAAD42EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */,
+				C2AFAAD52EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C2AFAAAA2EEDEE0C0057E476 /* Products */;
 			projectDirPath = "";
@@ -578,6 +595,51 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C2AFAAD32EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.0;
+			};
+		};
+		C2AFAAD42EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssh.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.8.0;
+			};
+		};
+		C2AFAAD52EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kishikawakatsumi/KeychainAccess.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.2.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C2AFAAD62EEDEE0E0057E476 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2AFAAD32EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
+		};
+		C2AFAAD72EEDEE0E0057E476 /* NIOSSH */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2AFAAD42EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */;
+			productName = NIOSSH;
+		};
+		C2AFAAD82EEDEE0E0057E476 /* KeychainAccess */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2AFAAD52EEDEE0E0057E476 /* XCRemoteSwiftPackageReference "KeychainAccess" */;
+			productName = KeychainAccess;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = C2AFAAA12EEDEE0C0057E476 /* Project object */;
 }
