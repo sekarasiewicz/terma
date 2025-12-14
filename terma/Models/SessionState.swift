@@ -45,10 +45,12 @@ final class TerminalSession: Identifiable {
     let profile: ServerProfile
     var connectionState: ConnectionState = .disconnected
     var title: String
+    var temporaryPassword: String?
 
-    init(id: UUID = UUID(), profile: ServerProfile) {
+    init(id: UUID = UUID(), profile: ServerProfile, temporaryPassword: String? = nil) {
         self.id = id
         self.profile = profile
         self.title = profile.name
+        self.temporaryPassword = temporaryPassword
     }
 }

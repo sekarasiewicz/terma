@@ -8,9 +8,11 @@ final class ServerListViewModel {
     var selectedProfile: ServerProfile?
     var showingAddSheet = false
     var showingEditSheet = false
+    var showingQuickConnect = false
     var profileToEdit: ServerProfile?
     var showingTerminal = false
     var activeSession: TerminalSession?
+    var quickConnectPassword: String?
 
     private let storage = ProfileStorage.shared
 
@@ -49,5 +51,15 @@ final class ServerListViewModel {
 
     func onProfileSaved() {
         loadProfiles()
+    }
+
+    func showQuickConnect() {
+        showingQuickConnect = true
+    }
+
+    func quickConnect(profile: ServerProfile, password: String) {
+        quickConnectPassword = password
+        activeSession = TerminalSession(profile: profile, temporaryPassword: password)
+        showingTerminal = true
     }
 }

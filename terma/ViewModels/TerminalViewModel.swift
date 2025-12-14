@@ -16,6 +16,29 @@ final class TerminalViewModel {
     var shouldReconnect = false
     var showingDisconnectAlert = false
     var disconnectError: String?
+    var autoReconnect = true
+    var reconnectAttempts = 0
+    private let maxReconnectAttempts = 3
+    private var isManualDisconnect = false
+
+    var showingHostKeyAlert = false
+    var hostKeyAlertTitle = ""
+    var hostKeyAlertMessage = ""
+    var hostKeyAlertFingerprint = ""
+    var hostKeyAlertIsWarning = false
+    private var hostKeyVerificationContinuation: CheckedContinuation<Bool, Never>?
+
+    var fontSize: CGFloat = 14 {
+        didSet {
+            fontSize = min(max(fontSize, 8), 32)
+            updateTerminalFont()
+        }
+    }
+
+    var isSearching = false
+    var searchText = ""
+    var searchMatchRows: [Int] = []
+    var currentMatchIndex = 0
 
     init(session: TerminalSession) {
         self.session = session
@@ -23,9 +46,26 @@ final class TerminalViewModel {
 
     func setupTerminal(_ terminal: TerminalView) {
         terminalView = terminal
-        terminal.font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        terminal.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         terminal.nativeBackgroundColor = .black
         terminal.nativeForegroundColor = .white
+    }
+
+    private func updateTerminalFont() {
+        terminalView?.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+    }
+
+    func increaseFontSize() {
+        fontSize += 2
+    }
+
+    func decreaseFontSize() {
+        fontSize -= 2
+    }
+
+    func handlePinchGesture(scale: CGFloat) {
+        let newSize = fontSize * scale
+        fontSize = newSize
     }
 
     func connect() async {
@@ -50,12 +90,51 @@ final class TerminalViewModel {
             }
         }
 
+        service.onHostKeyVerification = { [weak self] host, fingerprint, result in
+            await self?.handleHostKeyVerification(host: host, fingerprint: fingerprint, result: result) ?? false
+        }
+
         do {
-            try await service.connect(to: session.profile)
+            try await service.connect(to: session.profile, temporaryPassword: session.temporaryPassword)
             sendInitialResize()
         } catch {
             session.connectionState = .failed(error.localizedDescription)
         }
+    }
+
+    private func handleHostKeyVerification(host: String, fingerprint: String, result: HostKeyVerificationResult) async -> Bool {
+        switch result {
+        case .trusted:
+            return true
+        case .unknown:
+            hostKeyAlertTitle = "Unknown Host"
+            hostKeyAlertMessage = "The authenticity of host '\(host)' can't be established.\n\nFingerprint:"
+            hostKeyAlertFingerprint = fingerprint
+            hostKeyAlertIsWarning = false
+        case .changed(let oldFingerprint, let newFingerprint):
+            hostKeyAlertTitle = "WARNING: Host Key Changed!"
+            hostKeyAlertMessage = "The host key for '\(host)' has changed.\n\nThis could indicate a man-in-the-middle attack!\n\nOld fingerprint: \(oldFingerprint.shortFingerprint)\n\nNew fingerprint:"
+            hostKeyAlertFingerprint = newFingerprint
+            hostKeyAlertIsWarning = true
+        }
+
+        showingHostKeyAlert = true
+
+        return await withCheckedContinuation { continuation in
+            hostKeyVerificationContinuation = continuation
+        }
+    }
+
+    func acceptHostKey() {
+        hostKeyVerificationContinuation?.resume(returning: true)
+        hostKeyVerificationContinuation = nil
+        showingHostKeyAlert = false
+    }
+
+    func rejectHostKey() {
+        hostKeyVerificationContinuation?.resume(returning: false)
+        hostKeyVerificationContinuation = nil
+        showingHostKeyAlert = false
     }
 
     private func handleDataReceived(_ data: Data) {
@@ -65,11 +144,28 @@ final class TerminalViewModel {
     }
 
     private func handleDisconnect(_ error: Error?) {
-        if let error = error {
-            disconnectError = error.localizedDescription
-            showingDisconnectAlert = true
-        }
         session.connectionState = .disconnected
+
+        guard !isManualDisconnect else {
+            isManualDisconnect = false
+            return
+        }
+
+        if autoReconnect && reconnectAttempts < maxReconnectAttempts {
+            reconnectAttempts += 1
+            Task {
+                try? await Task.sleep(for: .seconds(Constants.reconnectDelay))
+                await reconnect()
+            }
+        } else {
+            if let error = error {
+                disconnectError = error.localizedDescription
+            } else {
+                disconnectError = "Connection lost"
+            }
+            showingDisconnectAlert = true
+            reconnectAttempts = 0
+        }
     }
 
     func sendData(_ data: Data) {
@@ -127,6 +223,74 @@ final class TerminalViewModel {
         sendString("\u{1B}[6~")
     }
 
+    func toggleSearch() {
+        isSearching.toggle()
+        if !isSearching {
+            clearSearch()
+        }
+    }
+
+    func performSearch() {
+        guard let terminal = terminalView, !searchText.isEmpty else {
+            searchMatchRows = []
+            currentMatchIndex = 0
+            return
+        }
+
+        let term = terminal.getTerminal()
+        let searchLower = searchText.lowercased()
+        var matches: [Int] = []
+
+        let totalRows = term.rows + term.buffer.yDisp
+        for row in 0..<totalRows {
+            if let line = term.getScrollInvariantLine(row: row) {
+                var lineText = ""
+                for col in 0..<term.cols {
+                    let char = line[col].getCharacter()
+                    lineText.append(char)
+                }
+                if lineText.lowercased().contains(searchLower) {
+                    matches.append(row)
+                }
+            }
+        }
+
+        searchMatchRows = matches
+        currentMatchIndex = matches.isEmpty ? 0 : 1
+
+        if let firstRow = matches.first {
+            scrollToRow(firstRow)
+        }
+    }
+
+    func nextMatch() {
+        guard !searchMatchRows.isEmpty else { return }
+        currentMatchIndex = currentMatchIndex < searchMatchRows.count ? currentMatchIndex + 1 : 1
+        let row = searchMatchRows[currentMatchIndex - 1]
+        scrollToRow(row)
+    }
+
+    func previousMatch() {
+        guard !searchMatchRows.isEmpty else { return }
+        currentMatchIndex = currentMatchIndex > 1 ? currentMatchIndex - 1 : searchMatchRows.count
+        let row = searchMatchRows[currentMatchIndex - 1]
+        scrollToRow(row)
+    }
+
+    private func scrollToRow(_ row: Int) {
+        guard let terminal = terminalView else { return }
+        let term = terminal.getTerminal()
+        let scrollRow = max(0, row - term.rows / 2)
+        term.buffer.yDisp = scrollRow
+        term.updateFullScreen()
+    }
+
+    func clearSearch() {
+        searchText = ""
+        searchMatchRows = []
+        currentMatchIndex = 0
+    }
+
     func resize(cols: Int, rows: Int) {
         sshService?.resize(cols: cols, rows: rows)
     }
@@ -139,12 +303,17 @@ final class TerminalViewModel {
     }
 
     func disconnect() {
+        isManualDisconnect = true
         sshService?.disconnect()
         sshService = nil
     }
 
     func reconnect() async {
-        disconnect()
+        isManualDisconnect = true
+        sshService?.disconnect()
+        sshService = nil
+        isManualDisconnect = false
+        reconnectAttempts = 0
         await connect()
     }
 }

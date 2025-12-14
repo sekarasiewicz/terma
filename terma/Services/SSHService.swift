@@ -13,6 +13,9 @@ enum SSHError: LocalizedError {
     case shellRequestFailed
     case disconnected
     case invalidKey
+    case hostKeyVerificationFailed
+    case hostKeyChanged(oldFingerprint: String, newFingerprint: String)
+    case hostKeyRejected
 
     var errorDescription: String? {
         switch self {
@@ -30,9 +33,17 @@ enum SSHError: LocalizedError {
             return "Disconnected from server"
         case .invalidKey:
             return "Invalid SSH key format"
+        case .hostKeyVerificationFailed:
+            return "Host key verification failed"
+        case .hostKeyChanged:
+            return "WARNING: Host key has changed! This could indicate a security threat."
+        case .hostKeyRejected:
+            return "Host key rejected by user"
         }
     }
 }
+
+typealias HostKeyVerificationCallback = @Sendable (String, String, HostKeyVerificationResult) async -> Bool
 
 final class SSHService: @unchecked Sendable {
     private var channel: Channel?
@@ -40,10 +51,13 @@ final class SSHService: @unchecked Sendable {
     private let group: MultiThreadedEventLoopGroup
     private var terminalCols: Int = Constants.defaultTerminalCols
     private var terminalRows: Int = Constants.defaultTerminalRows
+    private var currentHost: String = ""
+    private var currentPort: Int = 22
 
     var onDataReceived: (@Sendable (Data) -> Void)?
     var onStateChanged: (@Sendable (ConnectionState) -> Void)?
     var onDisconnected: (@Sendable (Error?) -> Void)?
+    var onHostKeyVerification: HostKeyVerificationCallback?
 
     private var _connectionState: ConnectionState = .disconnected
     var connectionState: ConnectionState {
@@ -62,20 +76,28 @@ final class SSHService: @unchecked Sendable {
         try? group.syncShutdownGracefully()
     }
 
-    func connect(to profile: ServerProfile) async throws {
+    func connect(to profile: ServerProfile, temporaryPassword: String? = nil) async throws {
         connectionState = .connecting
+        currentHost = profile.host
+        currentPort = profile.port
 
         let password: String?
         let privateKeyData: Data?
         let passphrase: String?
 
-        do {
-            password = try KeychainService.shared.getPassword(for: profile.keychainPasswordKey)
-            privateKeyData = try KeychainService.shared.getPrivateKey(for: profile.keychainPrivateKeyKey)
-            passphrase = try KeychainService.shared.getPassphrase(for: profile.keychainPassphraseKey)
-        } catch {
-            connectionState = .failed("Failed to load credentials")
-            throw SSHError.authenticationFailed
+        if let tempPwd = temporaryPassword {
+            password = tempPwd
+            privateKeyData = nil
+            passphrase = nil
+        } else {
+            do {
+                password = try KeychainService.shared.getPassword(for: profile.keychainPasswordKey)
+                privateKeyData = try KeychainService.shared.getPrivateKey(for: profile.keychainPrivateKeyKey)
+                passphrase = try KeychainService.shared.getPassphrase(for: profile.keychainPassphraseKey)
+            } catch {
+                connectionState = .failed("Failed to load credentials")
+                throw SSHError.authenticationFailed
+            }
         }
 
         let authDelegate: NIOSSHClientUserAuthenticationDelegate
@@ -98,6 +120,12 @@ final class SSHService: @unchecked Sendable {
             )
         }
 
+        let hostKeyDelegate = VerifyingHostKeyDelegate(
+            host: profile.host,
+            port: profile.port,
+            verificationCallback: onHostKeyVerification
+        )
+
         do {
             let bootstrap = ClientBootstrap(group: group)
                 .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
@@ -106,7 +134,7 @@ final class SSHService: @unchecked Sendable {
                         NIOSSHHandler(
                             role: .client(.init(
                                 userAuthDelegate: authDelegate,
-                                serverAuthDelegate: AcceptAllHostKeysDelegate()
+                                serverAuthDelegate: hostKeyDelegate
                             )),
                             allocator: channel.allocator,
                             inboundChildChannelInitializer: nil
@@ -305,9 +333,54 @@ private final class PrivateKeyAuthDelegate: NIOSSHClientUserAuthenticationDelega
     }
 }
 
-private final class AcceptAllHostKeysDelegate: NIOSSHClientServerAuthenticationDelegate {
+private final class VerifyingHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate {
+    private let host: String
+    private let port: Int
+    private let verificationCallback: HostKeyVerificationCallback?
+
+    init(host: String, port: Int, verificationCallback: HostKeyVerificationCallback?) {
+        self.host = host
+        self.port = port
+        self.verificationCallback = verificationCallback
+    }
+
     func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
-        validationCompletePromise.succeed(())
+        let result = HostKeyService.shared.verify(host: host, port: port, hostKey: hostKey)
+
+        switch result {
+        case .trusted:
+            validationCompletePromise.succeed(())
+
+        case .unknown, .changed:
+            guard let callback = verificationCallback else {
+                HostKeyService.shared.trustHost(host: host, port: port, hostKey: hostKey)
+                validationCompletePromise.succeed(())
+                return
+            }
+
+            let fingerprintString = extractFingerprint(from: result)
+
+            Task {
+                let accepted = await callback(host, fingerprintString, result)
+                if accepted {
+                    HostKeyService.shared.trustHost(host: host, port: port, hostKey: hostKey)
+                    validationCompletePromise.succeed(())
+                } else {
+                    validationCompletePromise.fail(SSHError.hostKeyRejected)
+                }
+            }
+        }
+    }
+
+    private func extractFingerprint(from result: HostKeyVerificationResult) -> String {
+        switch result {
+        case .trusted:
+            return ""
+        case .unknown(let fingerprint):
+            return fingerprint
+        case .changed(_, let newFingerprint):
+            return newFingerprint
+        }
     }
 }
 

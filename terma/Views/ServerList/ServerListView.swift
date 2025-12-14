@@ -14,12 +14,25 @@ struct ServerListView: View {
             }
             .navigationTitle("Servers")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        viewModel.showQuickConnect()
+                    } label: {
+                        Image(systemName: "bolt")
+                    }
+                }
+
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         viewModel.addNewProfile()
                     } label: {
                         Image(systemName: "plus")
                     }
+                }
+            }
+            .sheet(isPresented: $viewModel.showingQuickConnect) {
+                QuickConnectView { profile, password in
+                    viewModel.quickConnect(profile: profile, password: password)
                 }
             }
             .sheet(isPresented: $viewModel.showingAddSheet) {
@@ -51,12 +64,21 @@ struct ServerListView: View {
         } description: {
             Text("Add a server to connect via SSH")
         } actions: {
-            Button {
-                viewModel.addNewProfile()
-            } label: {
-                Text("Add Server")
+            HStack(spacing: 16) {
+                Button {
+                    viewModel.showQuickConnect()
+                } label: {
+                    Label("Quick Connect", systemImage: "bolt")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    viewModel.addNewProfile()
+                } label: {
+                    Text("Add Server")
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
     }
 
