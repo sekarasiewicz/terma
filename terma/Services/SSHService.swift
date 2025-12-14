@@ -13,6 +13,7 @@ enum SSHError: LocalizedError {
     case shellRequestFailed
     case disconnected
     case invalidKey
+    case unsupportedKeyType(String)
     case hostKeyVerificationFailed
     case hostKeyChanged(oldFingerprint: String, newFingerprint: String)
     case hostKeyRejected
@@ -33,6 +34,8 @@ enum SSHError: LocalizedError {
             return "Disconnected from server"
         case .invalidKey:
             return "Invalid SSH key format"
+        case .unsupportedKeyType(let keyType):
+            return "\(keyType) keys are not supported. Please use Ed25519 or ECDSA (P-256/P-384/P-521) keys."
         case .hostKeyVerificationFailed:
             return "Host key verification failed"
         case .hostKeyChanged:
@@ -288,7 +291,7 @@ private final class PrivateKeyAuthDelegate: NIOSSHClientUserAuthenticationDelega
         }
 
         do {
-            let privateKey = try parsePrivateKey(privateKeyData, passphrase: passphrase)
+            let privateKey = try parsePrivateKey(privateKeyData)
             nextChallengePromise.succeed(.init(
                 username: username,
                 serviceName: "",
@@ -299,37 +302,33 @@ private final class PrivateKeyAuthDelegate: NIOSSHClientUserAuthenticationDelega
         }
     }
 
-    private func parsePrivateKey(_ data: Data, passphrase: String?) throws -> NIOSSHPrivateKey {
-        guard let pemString = String(data: data, encoding: .utf8) else {
-            throw SSHError.invalidKey
-        }
+    private func parsePrivateKey(_ data: Data) throws -> NIOSSHPrivateKey {
+        let keyType = SSHKeyParser.detectKeyType(from: data)
 
-        if pemString.contains("ssh-ed25519") || pemString.contains("OPENSSH") {
-            let key = try Curve25519.Signing.PrivateKey(rawRepresentation: extractEd25519Key(from: data))
+        switch keyType {
+        case .ed25519:
+            let key = try SSHKeyParser.parseEd25519Key(data)
             return NIOSSHPrivateKey(ed25519Key: key)
-        }
 
-        throw SSHError.invalidKey
-    }
+        case .p256:
+            let key = try SSHKeyParser.parseP256Key(data)
+            return NIOSSHPrivateKey(p256Key: key)
 
-    private func extractEd25519Key(from data: Data) throws -> Data {
-        guard let pemString = String(data: data, encoding: .utf8) else {
+        case .p384:
+            let key = try SSHKeyParser.parseP384Key(data)
+            return NIOSSHPrivateKey(p384Key: key)
+
+        case .p521:
+            let key = try SSHKeyParser.parseP521Key(data)
+            return NIOSSHPrivateKey(p521Key: key)
+
+        case .rsa:
+            // RSA keys are not directly supported by NIOSSH for client auth
+            throw SSHError.unsupportedKeyType("RSA")
+
+        case .unknown:
             throw SSHError.invalidKey
         }
-
-        let lines = pemString.components(separatedBy: .newlines)
-            .filter { !$0.hasPrefix("-----") && !$0.isEmpty }
-        let base64String = lines.joined()
-
-        guard let decodedData = Data(base64Encoded: base64String) else {
-            throw SSHError.invalidKey
-        }
-
-        if decodedData.count >= 32 {
-            return decodedData.suffix(32)
-        }
-
-        throw SSHError.invalidKey
     }
 }
 
