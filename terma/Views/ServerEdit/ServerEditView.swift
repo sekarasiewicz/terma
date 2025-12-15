@@ -70,7 +70,7 @@ struct ServerEditView: View {
             }
             .fileImporter(
                 isPresented: $viewModel.showingKeyImporter,
-                allowedContentTypes: [.data, .text],
+                allowedContentTypes: [.item],
                 allowsMultipleSelection: false
             ) { result in
                 if case .success(let urls) = result, let url = urls.first {
