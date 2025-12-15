@@ -8,17 +8,23 @@ enum HostKeyVerificationResult {
     case changed(oldFingerprint: String, newFingerprint: String)
 }
 
-final class HostKeyService: Sendable {
+final class HostKeyService: @unchecked Sendable {
     static let shared = HostKeyService()
 
-    private let userDefaults = UserDefaults.standard
+    private let userDefaults: UserDefaults
     private let storageKey = "terma.knownHosts"
+    private let lock = NSLock()
 
-    private init() {}
+    private init() {
+        self.userDefaults = UserDefaults.standard
+    }
 
     func verify(host: String, port: Int, hostKey: NIOSSHPublicKey) -> HostKeyVerificationResult {
         let fingerprint = calculateFingerprint(hostKey)
         let key = hostIdentifier(host: host, port: port)
+
+        lock.lock()
+        defer { lock.unlock() }
 
         let knownHosts = getKnownHosts()
 
@@ -37,6 +43,9 @@ final class HostKeyService: Sendable {
         let fingerprint = calculateFingerprint(hostKey)
         let key = hostIdentifier(host: host, port: port)
 
+        lock.lock()
+        defer { lock.unlock() }
+
         var knownHosts = getKnownHosts()
         knownHosts[key] = fingerprint
         saveKnownHosts(knownHosts)
@@ -44,6 +53,10 @@ final class HostKeyService: Sendable {
 
     func removeHost(host: String, port: Int) {
         let key = hostIdentifier(host: host, port: port)
+
+        lock.lock()
+        defer { lock.unlock() }
+
         var knownHosts = getKnownHosts()
         knownHosts.removeValue(forKey: key)
         saveKnownHosts(knownHosts)
@@ -51,6 +64,10 @@ final class HostKeyService: Sendable {
 
     func getStoredFingerprint(host: String, port: Int) -> String? {
         let key = hostIdentifier(host: host, port: port)
+
+        lock.lock()
+        defer { lock.unlock() }
+
         return getKnownHosts()[key]
     }
 

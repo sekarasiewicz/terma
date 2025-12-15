@@ -1,8 +1,8 @@
 import Foundation
-import NIOCore
-import NIOPosix
+@preconcurrency import NIOCore
+@preconcurrency import NIOPosix
 import NIOFoundationCompat
-import NIOSSH
+@preconcurrency import NIOSSH
 import Crypto
 
 enum SSHError: LocalizedError {
@@ -103,7 +103,7 @@ final class SSHService: @unchecked Sendable {
             }
         }
 
-        let authDelegate: NIOSSHClientUserAuthenticationDelegate
+        nonisolated(unsafe) let authDelegate: NIOSSHClientUserAuthenticationDelegate
         switch profile.authMethod {
         case .password:
             guard let pwd = password, !pwd.isEmpty else {
@@ -231,7 +231,7 @@ final class SSHService: @unchecked Sendable {
     }
 }
 
-private final class PasswordAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
+private final class PasswordAuthDelegate: NIOSSHClientUserAuthenticationDelegate, @unchecked Sendable {
     private let username: String
     private let password: String
     private var attemptedAuth = false
@@ -263,7 +263,7 @@ private final class PasswordAuthDelegate: NIOSSHClientUserAuthenticationDelegate
     }
 }
 
-private final class PrivateKeyAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
+private final class PrivateKeyAuthDelegate: NIOSSHClientUserAuthenticationDelegate, @unchecked Sendable {
     private let username: String
     private let privateKeyData: Data
     private let passphrase: String?
@@ -332,7 +332,7 @@ private final class PrivateKeyAuthDelegate: NIOSSHClientUserAuthenticationDelega
     }
 }
 
-private final class VerifyingHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate {
+private final class VerifyingHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate, @unchecked Sendable {
     private let host: String
     private let port: Int
     private let verificationCallback: HostKeyVerificationCallback?
@@ -383,7 +383,7 @@ private final class VerifyingHostKeyDelegate: NIOSSHClientServerAuthenticationDe
     }
 }
 
-private final class SSHChannelDataHandler: ChannelInboundHandler {
+private final class SSHChannelDataHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = SSHChannelData
     typealias InboundOut = ByteBuffer
 
@@ -407,7 +407,7 @@ private final class SSHChannelDataHandler: ChannelInboundHandler {
     }
 }
 
-private final class SSHOutboundHandler: ChannelOutboundHandler {
+private final class SSHOutboundHandler: ChannelOutboundHandler, @unchecked Sendable {
     typealias OutboundIn = SSHChannelData
     typealias OutboundOut = SSHChannelData
 

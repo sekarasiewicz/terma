@@ -73,20 +73,23 @@ final class TerminalViewModel {
         sshService = service
 
         service.onDataReceived = { [weak self] data in
+            guard let self else { return }
             Task { @MainActor in
-                self?.handleDataReceived(data)
+                self.handleDataReceived(data)
             }
         }
 
         service.onStateChanged = { [weak self] state in
+            guard let self else { return }
             Task { @MainActor in
-                self?.session.connectionState = state
+                self.session.connectionState = state
             }
         }
 
         service.onDisconnected = { [weak self] error in
+            guard let self else { return }
             Task { @MainActor in
-                self?.handleDisconnect(error)
+                self.handleDisconnect(error)
             }
         }
 

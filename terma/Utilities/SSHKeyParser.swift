@@ -212,8 +212,6 @@ struct SSHKeyParser {
         // For OpenSSH ECDSA keys, extract the raw private scalar
         // P-256 private key is 32 bytes
 
-        let bytes = [UInt8](data)
-
         // Look for nistp256 identifier
         if let range = data.range(of: Data("nistp256".utf8)) {
             // The private key scalar follows after the public key

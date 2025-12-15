@@ -1,10 +1,10 @@
 import Foundation
-import KeychainAccess
+@preconcurrency import KeychainAccess
 
 final class KeychainService: Sendable {
     static let shared = KeychainService()
 
-    private let keychain: Keychain
+    nonisolated(unsafe) private let keychain: Keychain
 
     private init() {
         keychain = Keychain(service: "dev.karasiewicz.terma")
