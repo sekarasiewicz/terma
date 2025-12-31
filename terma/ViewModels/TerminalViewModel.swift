@@ -47,8 +47,12 @@ final class TerminalViewModel {
     func setupTerminal(_ terminal: TerminalView) {
         terminalView = terminal
         terminal.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
-        terminal.nativeBackgroundColor = .black
-        terminal.nativeForegroundColor = .white
+        applyTheme(AppSettings.shared.terminalTheme)
+    }
+
+    func applyTheme(_ theme: TerminalTheme) {
+        terminalView?.nativeBackgroundColor = theme.backgroundColor
+        terminalView?.nativeForegroundColor = theme.foregroundColor
     }
 
     private func updateTerminalFont() {

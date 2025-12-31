@@ -94,9 +94,13 @@ final class SSHService: @unchecked Sendable {
             passphrase = nil
         } else {
             do {
+                try await KeychainService.shared.authenticateIfRequired()
                 password = try KeychainService.shared.getPassword(for: profile.keychainPasswordKey)
                 privateKeyData = try KeychainService.shared.getPrivateKey(for: profile.keychainPrivateKeyKey)
                 passphrase = try KeychainService.shared.getPassphrase(for: profile.keychainPassphraseKey)
+            } catch let error as KeychainError {
+                connectionState = .failed(error.localizedDescription)
+                throw error
             } catch {
                 connectionState = .failed("Failed to load credentials")
                 throw SSHError.authenticationFailed

@@ -14,12 +14,12 @@
 - [x] Quick connect - Connect without saving profile (bolt icon in toolbar)
 - [x] Search in scrollback - Find text in terminal history with navigation
 
-## Phase 1: Polish
+## Phase 1: Polish (Completed)
 
-- [ ] Color themes - Dark/light themes, custom terminal colors (ANSI 16)
-- [ ] Haptic feedback - Subtle feedback on extra key taps
-- [ ] Biometric unlock - Face ID/Touch ID to protect credentials
-- [ ] URL detection - Tap to open links in terminal output
+- [x] Color themes - Dark, Light, Solarized Dark/Light presets
+- [x] Haptic feedback - Light impact on extra key taps
+- [x] Biometric unlock - Opt-in Face ID/Touch ID for credential access
+- [x] URL detection - Tap to open links (SwiftTerm built-in)
 
 ## Phase 2: iPad
 
@@ -42,16 +42,6 @@
 - [ ] Snippets - Saved commands with one-tap execution
 
 ## Implementation Notes
-
-### Color Themes
-- Store theme preference in UserDefaults
-- Define color sets: background, foreground, ANSI colors (16), cursor
-- Update SwiftTerm's `TerminalView` colors dynamically
-
-### Biometric Unlock
-- Use LocalAuthentication framework
-- Gate credential retrieval from Keychain
-- Fallback to device passcode
 
 ### iPad Keyboard Shortcuts
 - Use `.keyboardShortcut()` modifier in SwiftUI

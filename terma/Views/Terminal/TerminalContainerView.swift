@@ -109,6 +109,24 @@ struct TerminalContainerView: View {
                             Label("Font Size", systemImage: "textformat.size")
                         }
 
+                        Menu {
+                            ForEach(TerminalTheme.allCases) { theme in
+                                Button {
+                                    AppSettings.shared.terminalTheme = theme
+                                    viewModel.applyTheme(theme)
+                                } label: {
+                                    HStack {
+                                        Text(theme.displayName)
+                                        if AppSettings.shared.terminalTheme == theme {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label("Theme", systemImage: "paintpalette")
+                        }
+
                         Divider()
 
                         if viewModel.connectionState == .disconnected ||

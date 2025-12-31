@@ -1,5 +1,20 @@
 import Foundation
+import LocalAuthentication
 @preconcurrency import KeychainAccess
+
+enum KeychainError: Error, LocalizedError {
+    case authenticationFailed
+    case authenticationCancelled
+
+    var errorDescription: String? {
+        switch self {
+        case .authenticationFailed:
+            return "Biometric authentication failed"
+        case .authenticationCancelled:
+            return "Authentication was cancelled"
+        }
+    }
+}
 
 final class KeychainService: Sendable {
     static let shared = KeychainService()
@@ -9,6 +24,33 @@ final class KeychainService: Sendable {
     private init() {
         keychain = Keychain(service: "dev.karasiewicz.terma")
             .accessibility(.whenUnlocked)
+    }
+
+    func authenticateIfRequired() async throws {
+        guard AppSettings.shared.biometricEnabled else { return }
+
+        let context = LAContext()
+        var error: NSError?
+
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            // Biometrics not available, fall back silently
+            return
+        }
+
+        do {
+            let success = try await context.evaluatePolicy(
+                .deviceOwnerAuthenticationWithBiometrics,
+                localizedReason: "Authenticate to access server credentials"
+            )
+            if !success {
+                throw KeychainError.authenticationFailed
+            }
+        } catch let laError as LAError {
+            if laError.code == .userCancel || laError.code == .appCancel {
+                throw KeychainError.authenticationCancelled
+            }
+            // Other errors (e.g., biometry lockout) - allow fallback
+        }
     }
 
     func savePassword(_ password: String, for key: String) throws {

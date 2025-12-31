@@ -1,7 +1,10 @@
 import SwiftUI
+import LocalAuthentication
 
 struct ServerListView: View {
     @State private var viewModel = ServerListViewModel()
+    @State private var biometricEnabled = AppSettings.shared.biometricEnabled
+    @State private var biometricAvailable = false
 
     var body: some View {
         NavigationStack {
@@ -15,10 +18,23 @@ struct ServerListView: View {
             .navigationTitle("Servers")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        viewModel.showQuickConnect()
+                    Menu {
+                        if biometricAvailable {
+                            Toggle(isOn: $biometricEnabled) {
+                                Label("Require Face ID", systemImage: "faceid")
+                            }
+                            .onChange(of: biometricEnabled) { _, newValue in
+                                AppSettings.shared.biometricEnabled = newValue
+                            }
+                        }
+
+                        Button {
+                            viewModel.showQuickConnect()
+                        } label: {
+                            Label("Quick Connect", systemImage: "bolt")
+                        }
                     } label: {
-                        Image(systemName: "bolt")
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
 
@@ -54,6 +70,7 @@ struct ServerListView: View {
             }
             .onAppear {
                 viewModel.loadProfiles()
+                checkBiometricAvailability()
             }
         }
     }
@@ -96,6 +113,12 @@ struct ServerListView: View {
             }
         }
         .listStyle(.insetGrouped)
+    }
+
+    private func checkBiometricAvailability() {
+        let context = LAContext()
+        var error: NSError?
+        biometricAvailable = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
     }
 }
 

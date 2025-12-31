@@ -111,6 +111,8 @@ struct ExtraKeyButton: View {
     var isActive: Bool = false
     let action: () -> Void
 
+    private let impactGenerator = UIImpactFeedbackGenerator(style: .light)
+
     init(label: String, isActive: Bool = false, action: @escaping () -> Void) {
         self.label = label
         self.systemImage = nil
@@ -126,7 +128,10 @@ struct ExtraKeyButton: View {
     }
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            impactGenerator.impactOccurred()
+            action()
+        } label: {
             Group {
                 if let systemImage = systemImage {
                     Image(systemName: systemImage)
