@@ -80,6 +80,7 @@ final class SSHService: @unchecked Sendable {
     var onDataReceived: (@Sendable (Data) -> Void)?
     var onStateChanged: (@Sendable (ConnectionState) -> Void)?
     var onDisconnected: (@Sendable (Error?) -> Void)?
+    var onSessionEnded: (@Sendable () -> Void)?
     var onHostKeyVerification: HostKeyVerificationCallback?
 
     private var _connectionState: ConnectionState = .disconnected
@@ -194,6 +195,7 @@ final class SSHService: @unchecked Sendable {
         let cols = terminalCols
         let rows = terminalRows
         let onData = onDataReceived
+        let onClose = onSessionEnded
 
         // Keep all NIOSSHHandler operations on the event loop to avoid Sendable issues
         let childChannel: Channel = try await channel.eventLoop.flatSubmit {
@@ -204,9 +206,10 @@ final class SSHService: @unchecked Sendable {
                         return childChannel.eventLoop.makeFailedFuture(SSHError.channelCreationFailed)
                     }
                     return childChannel.pipeline.addHandlers([
-                        SSHChannelDataHandler(onData: { data in
-                            onData?(data)
-                        }),
+                        SSHChannelDataHandler(
+                            onData: { data in onData?(data) },
+                            onClose: { onClose?() }
+                        ),
                         SSHOutboundHandler(),
                     ])
                 }
@@ -421,9 +424,11 @@ private final class SSHChannelDataHandler: ChannelInboundHandler, @unchecked Sen
     typealias InboundOut = ByteBuffer
 
     private let onData: @Sendable (Data) -> Void
+    private let onClose: @Sendable () -> Void
 
-    init(onData: @escaping @Sendable (Data) -> Void) {
+    init(onData: @escaping @Sendable (Data) -> Void, onClose: @escaping @Sendable () -> Void) {
         self.onData = onData
+        self.onClose = onClose
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -433,6 +438,11 @@ private final class SSHChannelDataHandler: ChannelInboundHandler, @unchecked Sen
         guard let bytes = buffer.readBytes(length: buffer.readableBytes) else { return }
 
         onData(Data(bytes))
+    }
+
+    func channelInactive(context: ChannelHandlerContext) {
+        onClose()
+        context.fireChannelInactive()
     }
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {

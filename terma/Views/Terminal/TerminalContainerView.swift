@@ -175,6 +175,11 @@ struct TerminalContainerView: View {
                         .font(.system(.caption, design: .monospaced))
                 }
             }
+            .onChange(of: viewModel.shouldDismiss) { _, shouldDismiss in
+                if shouldDismiss {
+                    dismiss()
+                }
+            }
         }
     }
 }

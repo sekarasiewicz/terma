@@ -18,6 +18,7 @@ final class TerminalViewModel {
     var disconnectError: String?
     var autoReconnect = true
     var reconnectAttempts = 0
+    var shouldDismiss = false
     private let maxReconnectAttempts = 3
     private var isManualDisconnect = false
 
@@ -104,6 +105,13 @@ final class TerminalViewModel {
             await self?.handleHostKeyVerification(host: host, fingerprint: fingerprint, result: result) ?? false
         }
 
+        service.onSessionEnded = { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                self.handleSessionEnded()
+            }
+        }
+
         do {
             try await service.connect(to: session.profile, temporaryPassword: session.temporaryPassword)
             sendInitialResize()
@@ -176,6 +184,13 @@ final class TerminalViewModel {
             showingDisconnectAlert = true
             reconnectAttempts = 0
         }
+    }
+
+    private func handleSessionEnded() {
+        // Session ended gracefully (user typed exit or shell terminated)
+        session.connectionState = .disconnected
+        sshService = nil
+        shouldDismiss = true
     }
 
     func sendData(_ data: Data) {
