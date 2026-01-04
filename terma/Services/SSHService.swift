@@ -5,6 +5,26 @@ import NIOFoundationCompat
 @preconcurrency import NIOSSH
 import Crypto
 
+/// Wrapper to transfer non-Sendable types across concurrency boundaries when we know it's safe
+/// Used for NIO types that are only accessed on a single event loop
+@usableFromInline
+struct UnsafeTransfer<Value>: @unchecked Sendable {
+    @usableFromInline var wrappedValue: Value
+
+    @usableFromInline
+    init(_ value: Value) {
+        self.wrappedValue = value
+    }
+}
+
+extension ChannelPipeline {
+    /// Add handler without Sendable check - for use in channelInitializer where handler stays on event loop
+    @preconcurrency
+    func addHandlerUnsafely(_ handler: some ChannelHandler) -> EventLoopFuture<Void> {
+        addHandler(handler)
+    }
+}
+
 enum SSHError: LocalizedError {
     case connectionFailed(String)
     case authenticationFailed
@@ -134,19 +154,22 @@ final class SSHService: @unchecked Sendable {
         )
 
         do {
+            // Wrap config in UnsafeTransfer to allow capture in @Sendable closure
+            // This is safe because the closure runs on the NIO event loop
+            let configBox = UnsafeTransfer(SSHClientConfiguration(
+                userAuthDelegate: authDelegate,
+                serverAuthDelegate: hostKeyDelegate
+            ))
+
             let bootstrap = ClientBootstrap(group: group)
                 .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
                 .channelInitializer { channel in
-                    channel.pipeline.addHandlers([
-                        NIOSSHHandler(
-                            role: .client(.init(
-                                userAuthDelegate: authDelegate,
-                                serverAuthDelegate: hostKeyDelegate
-                            )),
-                            allocator: channel.allocator,
-                            inboundChildChannelInitializer: nil
-                        ),
-                    ])
+                    let handler = NIOSSHHandler(
+                        role: .client(configBox.wrappedValue),
+                        allocator: channel.allocator,
+                        inboundChildChannelInitializer: nil
+                    )
+                    return channel.pipeline.addHandlerUnsafely(handler)
                 }
 
             channel = try await bootstrap.connect(host: profile.host, port: profile.port).get()
@@ -168,30 +191,36 @@ final class SSHService: @unchecked Sendable {
             throw SSHError.channelCreationFailed
         }
 
-        let sshHandler = try await channel.pipeline.handler(type: NIOSSHHandler.self).get()
+        let cols = terminalCols
+        let rows = terminalRows
+        let onData = onDataReceived
 
-        let promise = channel.eventLoop.makePromise(of: Channel.self)
-
-        sshHandler.createChannel(promise) { childChannel, channelType in
-            guard channelType == .session else {
-                return childChannel.eventLoop.makeFailedFuture(SSHError.channelCreationFailed)
+        // Keep all NIOSSHHandler operations on the event loop to avoid Sendable issues
+        let childChannel: Channel = try await channel.eventLoop.flatSubmit {
+            channel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
+                let promise = channel.eventLoop.makePromise(of: Channel.self)
+                sshHandler.createChannel(promise) { childChannel, channelType in
+                    guard channelType == .session else {
+                        return childChannel.eventLoop.makeFailedFuture(SSHError.channelCreationFailed)
+                    }
+                    return childChannel.pipeline.addHandlers([
+                        SSHChannelDataHandler(onData: { data in
+                            onData?(data)
+                        }),
+                        SSHOutboundHandler(),
+                    ])
+                }
+                return promise.futureResult
             }
-            return childChannel.pipeline.addHandlers([
-                SSHChannelDataHandler(onData: { [weak self] data in
-                    self?.onDataReceived?(data)
-                }),
-                SSHOutboundHandler(),
-            ])
-        }
+        }.get()
 
-        let childChannel = try await promise.futureResult.get()
         sshChannel = childChannel
 
         let ptyRequest = SSHChannelRequestEvent.PseudoTerminalRequest(
             wantReply: true,
             term: Constants.defaultTerminalType,
-            terminalCharacterWidth: terminalCols,
-            terminalRowHeight: terminalRows,
+            terminalCharacterWidth: cols,
+            terminalRowHeight: rows,
             terminalPixelWidth: 0,
             terminalPixelHeight: 0,
             terminalModes: SSHTerminalModes([:])
