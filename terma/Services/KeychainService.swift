@@ -27,7 +27,8 @@ final class KeychainService: Sendable {
     }
 
     func authenticateIfRequired() async throws {
-        guard AppSettings.shared.biometricEnabled else { return }
+        let biometricEnabled = await MainActor.run { AppSettings.shared.biometricEnabled }
+        guard biometricEnabled else { return }
 
         let context = LAContext()
         var error: NSError?

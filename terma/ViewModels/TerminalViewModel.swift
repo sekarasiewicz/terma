@@ -240,6 +240,33 @@ final class TerminalViewModel {
         sendString("\u{1B}[F")
     }
 
+    func copyVisibleScreen() {
+        guard let terminal = terminalView else { return }
+
+        let term = terminal.getTerminal()
+        var lines: [String] = []
+
+        for row in 0..<term.rows {
+            if let line = term.getLine(row: row) {
+                var lineText = ""
+                for col in 0..<term.cols {
+                    lineText.append(line[col].getCharacter())
+                }
+                lines.append(lineText.trimmingCharacters(in: .whitespaces))
+            }
+        }
+
+        let text = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty {
+            UIPasteboard.general.string = text
+        }
+    }
+
+    func paste() {
+        guard let text = UIPasteboard.general.string else { return }
+        sendString(text)
+    }
+
     func sendPageUp() {
         sendString("\u{1B}[5~")
     }

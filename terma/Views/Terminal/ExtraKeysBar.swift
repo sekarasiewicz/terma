@@ -70,20 +70,20 @@ struct ExtraKeysBar: View {
                     sendCharacter("~")
                 }
 
+                ExtraKeyButton(systemImage: "doc.on.doc") {
+                    viewModel.copyVisibleScreen()
+                }
+
+                ExtraKeyButton(systemImage: "doc.on.clipboard") {
+                    viewModel.paste()
+                }
+
                 ExtraKeyButton(label: "PgUp") {
                     viewModel.sendPageUp()
                 }
 
                 ExtraKeyButton(label: "PgDn") {
                     viewModel.sendPageDown()
-                }
-
-                ExtraKeyButton(label: "Home") {
-                    viewModel.sendHome()
-                }
-
-                ExtraKeyButton(label: "End") {
-                    viewModel.sendEnd()
                 }
             }
         }
