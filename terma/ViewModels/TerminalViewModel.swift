@@ -28,9 +28,12 @@ final class TerminalViewModel {
     var hostKeyAlertIsWarning = false
     private var hostKeyVerificationContinuation: CheckedContinuation<Bool, Never>?
 
-    var fontSize: CGFloat = 14 {
-        didSet {
-            fontSize = min(max(fontSize, 8), 32)
+    private var _fontSize: CGFloat = 14
+
+    var fontSize: CGFloat {
+        get { _fontSize }
+        set {
+            _fontSize = min(max(newValue, 8), 32)
             updateTerminalFont()
         }
     }
